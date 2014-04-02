@@ -149,6 +149,15 @@ class Job(object):
 
   def wrap(self, f, *args, **kwargs):
     """wrap a function and its arguments to invoke"""
+    # make sure f is a function and picklable
+    if not callable(f):
+      raise TypeError("'{type}' object is not callable".format(type=type(f).__name__))
+    try:
+      pickle.dumps(f)
+    except TypeError:
+      raise TypeError('lambda expressions and function objects cannot be wrapped')
+    if f.__module__ == '__main__':
+      raise TypeError('functions in __main__ cannot be wrapped')
     self.f = f
     self.args = args
     self.kwargs = kwargs
@@ -205,9 +214,6 @@ def run_from_command_line(argv):
     return job
   except KeyboardInterrupt as interrupt:
     raise Exception('Job terminated with KeyboardInterrupt')
-  except Exception as e:
-    print('A gridengine exception was raised while executing job {id}. '
-          'Detail: {e}'.format(id=jobid, e=e), file=sys.stderr)
 
 if __name__ == '__main__':
   run_from_command_line(sys.argv)

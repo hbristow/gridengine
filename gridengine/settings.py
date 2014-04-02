@@ -68,5 +68,6 @@ for node in BLACKLIST:
 # ----------------------------------------------------------------------------
 if __name__ == '__main__':
   # print only the settings attributes
-  for key, val in vars().items() if key.isupper():
-    print(key, ' = ', val)
+  for key, val in vars().items():
+    if key.isupper():
+      print(key, ' = ', val)
