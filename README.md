@@ -8,14 +8,13 @@ GridEngine streamlines the process of managing distributed computing on a Sun Gr
 
 GridEngine is best explained with some ASCII art:
 
-
-          |	     JobDispatcher  ------>  Scheduler
-  Host 	  |		        /\                    /
-          |	         /  \                  /
-                    /    \                /
-  Comms   | ZeroMQ /      \              / Sun Grid Engine
-                  /        \            /
-  Cluster |	  Job0  ...  Job1  ...  JobN
+            |	     JobDispatcher  ------>  Scheduler
+    Host 	  |		        /\                    /
+            |	         /  \                  /
+                      /    \                /
+    Comms   | ZeroMQ /      \              / Sun Grid Engine
+                    /        \            /
+    Cluster |	  Job0  ...  Job1  ...  JobN
 
 Jobs are wrappers around a function and its arguments. Jobs are constructed on the host and executed on the cluster. The `JobDispatcher` is tasked with collating and dispatching the jobs, then communicating with them once running. The `JobDispatcher` passes the jobs to the `Scheduler` to be invoked.
 

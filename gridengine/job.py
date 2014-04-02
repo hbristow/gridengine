@@ -42,7 +42,7 @@ class JobDispatcher(object):
     #self.scheduler_lock  = self.scheduler.lock
 
   def listen(self):
-    print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.transport))
+    print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.address))
     while not self.finished:
       # poll the socket with timeout
       if self.poller.poll(timeout=1000):
