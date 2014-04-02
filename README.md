@@ -9,7 +9,7 @@ GridEngine streamlines the process of managing distributed computing on a Sun Gr
 GridEngine is best explained with some ASCII art:
 
             |	     JobDispatcher  ------>  Scheduler
-    Host 	  |		        /\                    /
+    Host    |		        /\                    /
             |	         /  \                  /
                       /    \                /
     Comms   | ZeroMQ /      \              / Sun Grid Engine
