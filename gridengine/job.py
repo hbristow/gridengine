@@ -31,12 +31,14 @@ class Job(object):
   do the same.
 
   """
-  def __init__(self, target=None, name=None, args=(), kwargs={}):
+  def __init__(self, mutable=False, target=None, name=None, args=(), kwargs={}):
     """Initialize a Job
 
     The constructor should always be called with keyword arguments. If
     subclassing Job, you do not need to call super().
     Args:
+      mutable: reserved for subclasses. Indicates that the Job exhibits mutable
+      behaviour and should be synchronized with the host on return
       target: the function to wrap. Must be serializable.
       name: a name for the job. If None, a unique identifier is generated
       args: the positional arguments to the target
@@ -58,6 +60,9 @@ class Job(object):
     self.name = name
     self.args = args
     self.kwargs = kwargs
+
+    # mutation behaviour reserved for subclasses
+    self.mutable = False
 
   def __str__(self):
     if hasattr(self, 'target'):
