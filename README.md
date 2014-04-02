@@ -1,18 +1,35 @@
 GridEngine
 ==========
-A high-level Python wrapper around the Sun Grid Engine (SGE) using DRMAA and ZeroMQ
+A lightweight Python library for distributed computing on Sun Grid Engines
+
+Introduction
+------------
+GridEngine streamlines the process of managing distributed computing on a Sun Grid Engine. It was designed by a PhD Student (me) for iterating over algorithm and experiment design on a computing cluster.
+
+GridEngine is best explained with some ASCII art:
+
+
+          |	     JobDispatcher  ------>  Scheduler
+  Host 	  |		        /\                    /
+          |	         /  \                  /
+                    /    \                /
+  Comms   | ZeroMQ /      \              / Sun Grid Engine
+                  /        \            /
+  Cluster |	  Job0  ...  Job1  ...  JobN
+
+Jobs are wrappers around a function and its arguments. Jobs are constructed on the host and executed on the cluster. The `JobDispatcher` is tasked with collating and dispatching the jobs, then communicating with them once running. The `JobDispatcher` passes the jobs to the `Scheduler` to be invoked.
+
+There are two schedulers:
+
+- `ProcessScheduler` which schedules jobs across processes on a multi-core computer (laptop, etc). This is handy for debugging and experiment design before scheduling thousands of jobs on the cluster
+- `GridEngineScheduler` which schedules jobs across nodes on a Sun Grid Engine (cluster). This scheduler can actually be used in any environment which uses DRMAA.
+
+Once the jobs have have scheduled, they contact the `JobDispatcher` for their job allocation, run the job, and submit the results back to the dispatcher before terminating.
 
 Features
 --------
-GridEngine streamlines the process of submitting array jobs to a Sun Grid Engine scheduler, then maintains communication between the jobs and the submission host using ZeroMQ. This allows running jobs to be monitored, killed or given updated task allocations in synchronization with other running jobs.
-
-GridEngine was designed to distribute algorithm and experiment designs over a computing cluster.
-
-GridEngine features:
-
  - A distributed functional `map`
- - `Process` and `GridEngine` schedulers for testing tasks on a laptop, then scaling them up to the Grid Engine
- - SGE Job scheduling from within Python
+ - `ProcessScheduler` and `GridEngineScheduler` schedulers for testing tasks on a laptop, then scaling them up to the Grid Engine
 
 Installation
 ------------
@@ -42,6 +59,7 @@ scheduler = gridengine.schedulers.GridEngineScheduler()
 x = [1, 2, 3, 4, 5]
 y = gridengine.map(f, x, scheduler=scheduler)
 ```
+
 See `gridengine/example.py` for a runnable example.
 
 Branches/Contributing
