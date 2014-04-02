@@ -105,7 +105,7 @@ class GridEngineScheduler(Scheduler):
 
       self.sgeids = self.session.runBulkJobs(jt, 1, len(job_table), 1)
       print('GridEngineScheduler: submitted {0} jobs in array {1}'
-            .format(len(job_table), sgeids[0].split('.')[0]))
+            .format(len(job_table), self.sgeids[0].split('.')[0]))
 
     # wait for completion
     while True:
