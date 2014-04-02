@@ -21,7 +21,8 @@ collating and dispatching the jobs, then communicating with them once running.
 The `JobDispatcher` passes the jobs to the `Scheduler` to be invoked.
 
 Modules:
-  job: The Job and JobDispatcher classes
+  job: The Job and JobController
+  dispatch: The JobDispatcher
   schedulers: `ProcessScheduler` and `GridEngineScheduler`
   functional: provides a distributed `map` function
   settings: settings that control the global behaviour of gridengine
@@ -29,6 +30,8 @@ Modules:
 """
 
 # import the commonly used submodules for convenience
-from . import functional, job, schedulers
+from . import dispatch, functional, job, schedulers
 # import the special map function into the root namespace
 from functional import map
+# import the Job class so users can subclass, e.g. MySpecialJob(gridengine.Job)
+from job import Job

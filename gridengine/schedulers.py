@@ -2,14 +2,14 @@ import os
 import sys
 import multiprocessing
 import cPickle as pickle
-from . import settings
+from . import job, settings
 
 # ----------------------------------------------------------------------------
 # Generic scheduler interface
 # ----------------------------------------------------------------------------
 class Scheduler(object):
   """A generic scheduler interface"""
-  def schedule(self, submission_host, jobs, **kwargs):
+  def schedule(self, submission_host, job_table, **kwargs):
     raise NotImplementedError()
 
 
@@ -25,30 +25,29 @@ class ProcessScheduler(Scheduler):
     # set the threads to the cpu count
     self.max_threads = max_threads if max_threads else multiprocessing.cpu_count()
 
-  def schedule(self, submission_host, jobs, **kwargs):
-    """schedule the jobs (array of job.Job) to run
+  def schedule(self, submission_host, job_table, **kwargs):
+    """schedule the jobs (dict of {jobid, job.Job}) to run
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      jobs: the list of job.Job items to run
+      jobs: the dict of {jobid, job.Job{ items to run
 
     Keyword Args:
       ignored (for compatibility)
     """
-    from .job import run_from_command_line
     pool = multiprocessing.Pool(processes=self.max_threads)
     print('ProcessScheduler: submitted {0} jobs across {1} concurrent processes'
-          .format(len(jobs), self.max_threads))
+          .format(len(job_table), self.max_threads))
 
+    args = (['', submission_host, jobid] for jobid in range(1,len(job_table)+1))
     try:
-      jobs = pool.map(run_from_command_line, [('', submission_host, j.jobid) for j in jobs])
+      jobs = pool.map(job.run_from_command_line, args)
     except Exception as e:
       pool.terminate()
       pool.join()
     else:
       pool.close()
       pool.join()
-    return jobs
 
 
 # ----------------------------------------------------------------------------
@@ -69,17 +68,22 @@ class GridEngineScheduler(Scheduler):
     self.whitelist = settings.WHITELIST
     self.session = drmaa.Session()
     self.session.initialize()
+    self.sgeids = []
 
   def __del__(self):
-    if hasattr(self, 'session'):
-      self.session.exit()
+    try:
+      # attempt cleanup
+      [self.remove(sgeid) for sgeid in self.sgeids]
+    except:
+      pass
+    self.session.exit()
 
-  def schedule(self, submission_host, jobs, **kwargs):
-    """schedule the jobs (array of job.Job) to run
+  def schedule(self, submission_host, job_table, **kwargs):
+    """schedule the jobs (dict of {jobid, job.Job}) to run
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      jobs: the list of job.Job items to run
+      jobs: the dict of {jobid, job.Job} items to run
 
     Keyword Args:
       h_cpu: maximum time expressed in format '02:00:00' (2 hours)
@@ -99,30 +103,25 @@ class GridEngineScheduler(Scheduler):
       jt.outputPath = ':'+os.path.expanduser(settings.TEMPDIR)
       jt.errorPath  = ':'+os.path.expanduser(settings.TEMPDIR)
 
-      sgeids = self.session.runBulkJobs(jt, 1, len(jobs), 1)
+      self.sgeids = self.session.runBulkJobs(jt, 1, len(job_table), 1)
       print('GridEngineScheduler: submitted {0} jobs in array {1}'
-            .format(len(jobs), sgeids[0].split('.')[0]))
-      for sgeid, job in zip(sgeids, jobs):
-        job.sgeid = sgeid
+            .format(len(job_table), sgeids[0].split('.')[0]))
 
     # wait for completion
     while True:
       try:
-        self.session.synchronize(sgeids, timeout=1, dispose=True)
+        self.session.synchronize(self.sgeids, timeout=1, dispose=True)
       except self.drmaa.ExitTimeoutException as timeout:
         # polling timed out, continue
         pass
       except KeyboardInterrupt as interrupt:
-        [self.remove(job) for job in jobs]
+        [self.remove(sgeid) for sgeid in self.sgeids]
         break
       else:
         # all jobs finished!
         break
 
-    # collect the results
-    return jobs
-
-  def remove(self, job):
+  def remove(self, sgeid):
     """Remove (Terminate) a running or queued Job"""
-    print('Forceably terminating job {id}'.format(id=job.sgeid))
-    self.session.control(job.sgeid, self.drmaa.JobControlAction.TERMINATE)
+    print('Forceably terminating job {id}'.format(id=sgeid))
+    self.session.control(sgeid, self.drmaa.JobControlAction.TERMINATE)

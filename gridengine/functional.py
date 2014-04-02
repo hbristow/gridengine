@@ -1,5 +1,5 @@
 import inspect
-from . import job, schedulers
+from . import job, dispatch, schedulers
 
 # ----------------------------------------------------------------------------
 # Map
@@ -30,19 +30,18 @@ def map(f, args, scheduler=schedulers.ProcessScheduler):
   """
 
   # setup the dispatcher
-  dispatcher = job.JobDispatcher(scheduler)
+  dispatcher = dispatch.JobDispatcher(scheduler)
 
   # allocate the jobs
-  jobs = [job.Job().wrap(f, arg) for arg in args]
+  jobs = [job.Job(target=f, args=(arg,)) for arg in args]
 
   # run the jobs (guaranteed to return in the same order)
-  jobs = dispatcher.dispatch(jobs)
+  results = dispatcher.dispatch(jobs)
 
-  # collate the results
-  results = []
-  for result, exception in ((j.result, j.exception) for j in jobs):
-    if isinstance(exception, Exception):
+  # check for exceptions
+  for result in results:
+    if isinstance(result, Exception):
       # an error occurred during execution of one of the jobs, reraise it
-      raise exception
-    results.append(result)
+      raise result
+
   return results

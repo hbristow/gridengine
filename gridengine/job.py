@@ -1,101 +1,9 @@
 from __future__ import print_function
 import cPickle as pickle
-import inspect
 import os
 import socket
 import sys
-import threading
 import uuid
-from . import schedulers
-
-# ----------------------------------------------------------------------------
-# JOB DISPATCHER
-# ----------------------------------------------------------------------------
-class JobDispatcher(object):
-  """
-  Server-like node tasked with dispatching and mediating jobs
-  """
-  def __init__(self, scheduler=schedulers.ProcessScheduler):
-
-    # initialize the scheduler if it's not already an instance
-    self.scheduler = scheduler() if inspect.isclass(scheduler) else scheduler
-
-    # setup the ZeroMQ communications
-    import zmq
-    self.context = zmq.Context()
-    self.host_name = socket.gethostname()
-    self.ip = socket.gethostbyname(self.host_name)
-    self.transport = 'tcp://{ip}'.format(ip=self.ip)
-
-    # server/reply protocol (zmq.REP)
-    self.socket = self.context.socket(zmq.REP)
-    self.port = self.socket.bind_to_random_port(self.transport)
-    self.address = '{transport}:{port}'.format(transport=self.transport, port=self.port)
-
-    # poller
-    self.poller = zmq.Poller()
-    self.poller.register(self.socket, zmq.POLLIN)
-
-    # control locks
-    self._finished = True
-    self.dispatcher_lock = threading.Lock()
-    #self.scheduler_lock  = self.scheduler.lock
-
-  def listen(self):
-    print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.address))
-    while not self.finished:
-      # poll the socket with timeout
-      if self.poller.poll(timeout=1000):
-        request = pickle.loads(self.socket.recv())
-        request, jobid, data = [request.get(key, None) for key in ('request', 'jobid', 'data')]
-        if request == 'fetch_job':
-          # find the requested job
-          job = next(job for job in self.jobs if job.jobid == jobid)
-          # send the job back to the client
-          self.socket.send(pickle.dumps(job, pickle.HIGHEST_PROTOCOL))
-        if request == 'store_data':
-          # find the requested job
-          job = next(job for job in self.jobs if job.jobid == jobid)
-          # store the results
-          job.result = data.result
-          job.exception = data.exception
-          self.socket.send(pickle.dumps(True, pickle.HIGHEST_PROTOCOL))
-
-  def dispatch(self, jobs):
-    # assign each of the jobs unqiue ids (1-based indexing)
-    for id, job in enumerate(jobs):
-      job.jobid = id + 1
-    self.jobs = jobs
-    # spin up the mediator
-    self.finished = False
-    mediator = threading.Thread(target=self.listen)
-    mediator.start()
-    # spin up the scheduler
-    try:
-      jobs = self.scheduler.schedule(self.address, jobs)
-    except Exception as e:
-      # catch anything so we can shut down the mediator
-      print(e)
-    finally:
-      # shut down the mediator
-      self.finished = True
-      mediator.join()
-
-    # return the transformed jobs
-    return jobs
-
-  def get_finished(self):
-    with self.dispatcher_lock:
-      return self._finished
-  def set_finished(self, value):
-    with self.dispatcher_lock:
-      self._finished = value
-  finished = property(get_finished, set_finished)
-
-  def __del__(self):
-    """make sure the socket is closed on deallocation"""
-    if hasattr(self, 'socket'):
-      self.socket.close()
 
 
 # ----------------------------------------------------------------------------
@@ -104,68 +12,106 @@ class JobDispatcher(object):
 class Job(object):
   """
   Execution node that wrap a function, its data and return/exception values.
+
+  A gridengine Job observes the same API as the builtin threading.Thread
+  and multiprocessing.Process classes. This is to assist in transitioning
+  from multiprocessing to Sun Grid Engine processing.
+
+  Job has two use cases:
+    1. Wrap a callable and its arguments in the constructor and let the grid
+       engine handle everything else (the normal use case)
+    2. Subclass Job and override the behaviour of the run() method
+
+  The latter option enables more powerful use cases (such as the use of
+  protocol.Protocols for bidirectional job communication), but requires more
+  code.
+
+  Note that some care has been made to ensure that Job objects and the
+  functions they wrap are pickle serializable. When subclassing Job, be sure to
+  do the same.
+
   """
+  def __init__(self, target=None, name=None, args=(), kwargs={}):
+    """Initialize a Job
 
-  def __init__(self, submission_host=None, jobid=None):
+    The constructor should always be called with keyword arguments. If
+    subclassing Job, you do not need to call super().
+    Args:
+      target: the function to wrap. Must be serializable.
+      name: a name for the job. If None, a unique identifier is generated
+      args: the positional arguments to the target
+      kwargs: the keyword arguments to the target
+    """
 
-    if submission_host:
-      # actual job invocation
-      import zmq
-      self.context = zmq.Context()
-      self.host_name = socket.gethostname()
-      self.ip = socket.gethostbyname(self.host_name)
-      self.transport = 'tcp://{ip}'.format(ip=self.ip)
-      self.submission_host = submission_host
-      self.jobid = jobid
-
-      # client/request protocol (zmq.REQ)
-      self.socket = self.context.socket(zmq.REQ)
-      self.socket.connect(submission_host)
-
-    # job template
-    self.result = None
-    self.exception = None
-
-  def __del__(self):
-    """make sure the socket is closed on deallocation"""
-    if hasattr(self, 'socket'):
-      self.socket.close()
-
-  def __getstate__(self):
-    """Select subset of attributes to pickle"""
-    attributes = ['submission_host', 'jobid', 'f', 'args', 'kwargs', 'result', 'exception']
-    return dict((key, val) for key, val in self.__dict__.items() if key in attributes)
-
-  def __str__(self):
-    if hasattr(self, 'f'):
-      # return a truncated view of the function invocation
-      return '{f}({args})'.format(f=self.f.__name__, args=', '.join(
-        ['{:.5}'.format(str(arg)) for arg in self.args] +
-        ['{key}={val:.8}'.format(key=str(key), val=str(val)) for key, val in self.kwargs.items()]
-      ))
-    else:
-      # return the job spec
-      return '{id} on host {host}'.format(id=self.jobid, host=self.submission_host)
-
-  def wrap(self, f, *args, **kwargs):
-    """wrap a function and its arguments to invoke"""
-    # make sure f is a function and picklable
-    if not callable(f):
-      raise TypeError("'{type}' object is not callable".format(type=type(f).__name__))
+    # make sure the target is a function and picklable
+    if not callable(target):
+      raise TypeError("'{type}' object is not callable".format(type=type(target).__name__))
     try:
-      pickle.dumps(f)
+      pickle.dumps(target)
     except TypeError:
-      raise TypeError('lambda expressions and function objects cannot be wrapped')
-    if f.__module__ == '__main__':
-      raise TypeError('functions in __main__ cannot be wrapped')
-    self.f = f
+      raise TypeError('lambda expressions and function objects cannot be targeted')
+    if target.__module__ == '__main__':
+      raise TypeError('functions in __main__ cannot be targeted')
+
+    # store the arguments
+    self.target = target
+    self.name = name
     self.args = args
     self.kwargs = kwargs
-    # return value
-    self.result = None
-    # exception (if one occurs)
-    self.exception = None
-    return self
+
+  def __str__(self):
+    if hasattr(self, 'target'):
+      # return a truncated view of the function invocation
+      f      = self.target.__name__
+      args   = ['{:.5}'.format(str(arg)) for arg in self.args]
+      kwargs = ['{key}={val:.8}'.format(key=key, val=str(val)) for key, val in self.kwargs.items()]
+      return '{f}({args})'.format(f=f, args=', '.join([args, kwargs]))
+    else:
+      return object.__str__(self)
+
+  def run(self):
+    """
+    Runs the Job target with the stored arguments.
+    """
+    result = self.target(*self.args, **self.kwargs)
+    return result
+
+
+# ----------------------------------------------------------------------------
+# JOB CONTROLLER
+# ----------------------------------------------------------------------------
+class JobController(object):
+
+  def __init__(self, submission_host, jobid):
+    # actual job invocation
+    import zmq
+    self.context = zmq.Context()
+    self.host_name = socket.gethostname()
+    self.ip = socket.gethostbyname(self.host_name)
+    self.transport = 'tcp://{ip}'.format(ip=self.ip)
+    self.submission_host = submission_host
+    self.jobid = int(jobid)
+
+    # client/request protocol (zmq.REQ)
+    self.socket = self.context.socket(zmq.REQ)
+    self.socket.connect(submission_host)
+
+  def __del__(self):
+    self.socket.close()
+
+  def start(self):
+    # fetch the job
+    job = self.fetch()
+    # run the job
+    try:
+      result = job.run()
+    except KeyboardInterrupt as interrupt:
+      raise Exception('Job terminated with KeyboardInterrupt')
+    except Exception as e:
+      # store the exception to handle on the host
+      result = e
+    # return the result to the dispatcher controller
+    self.store(result)
 
   def fetch(self):
     """fetch the job assignment from the job dispatcher"""
@@ -175,45 +121,24 @@ class Job(object):
       'data': None}, pickle.HIGHEST_PROTOCOL))
     return pickle.loads(self.socket.recv())
 
-  def store(self, job):
+  def store(self, result):
     """Push the results back to the server"""
     self.socket.send(pickle.dumps({
       'jobid': self.jobid,
       'request': 'store_data',
-      'data': job}, pickle.HIGHEST_PROTOCOL))
+      'data': result}, pickle.HIGHEST_PROTOCOL))
     return pickle.loads(self.socket.recv())
 
-  def run(self):
-    """
-    Runs the job function with the stored arguments.
-    The return value is stored in the results attribute. If an exception is
-    raised, it is suppressed and stored in the exception attribute.
-    Upon collation of the results, any exceptions can be re-raised
-    (as per functional.map)
-    """
-    try:
-      self.result = self.f(*self.args, **self.kwargs)
-    except KeyboardInterrupt as interrupt:
-      raise interrupt
-    except Exception as e:
-      self.exception = e
-    return self
-
-# ----------------------------------------------------------------------------
-# Job Entry Point
-# ----------------------------------------------------------------------------
 def run_from_command_line(argv):
-  try:
-    # retrieve the client jobid and submission host address
-    script, submission_host, jobid = argv
-    # create a new job
-    job_template = Job(submission_host, int(jobid))
-    job = job_template.fetch()
-    job.run()
-    job_template.store(job)
-    return job
-  except KeyboardInterrupt as interrupt:
-    raise Exception('Job terminated with KeyboardInterrupt')
+
+  # retrieve the client jobid and submission host address
+  script, submission_host, jobid = argv
+
+  # create a job controller
+  controller = JobController(submission_host, jobid)
+
+  # fetch the job, run and store the results
+  controller.start()
 
 if __name__ == '__main__':
   run_from_command_line(sys.argv)

@@ -29,6 +29,7 @@ Features
 --------
  - A distributed functional `map`
  - `ProcessScheduler` and `GridEngineScheduler` schedulers for testing tasks on a laptop, then scaling them up to the Grid Engine
+ - `gridengine.Job` API compatible with `threading.Thread` and `multiprocessing.Process`
 
 Installation
 ------------
