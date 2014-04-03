@@ -11,7 +11,7 @@ import uuid
 # ----------------------------------------------------------------------------
 class Job(object):
   """
-  Execution node that wrap a function, its data and return/exception values.
+  Execution node that wraps a function and its arguments
 
   A gridengine Job observes the same API as the builtin threading.Thread
   and multiprocessing.Process classes. This is to assist in transitioning
@@ -26,7 +26,7 @@ class Job(object):
   protocol.Protocols for bidirectional job communication), but requires more
   code.
 
-  Note that some care has been made to ensure that Job objects and the
+  Note that some care has been taken to ensure that Job objects and the
   functions they wrap are pickle serializable. When subclassing Job, be sure to
   do the same.
 
@@ -39,7 +39,7 @@ class Job(object):
     Args:
       mutable: reserved for subclasses. Indicates that the Job exhibits mutable
       behaviour and should be synchronized with the host on return
-      target: the function to wrap. Must be serializable.
+      target: the function to wrap. Must be serializable
       name: a name for the job. If None, a unique identifier is generated
       args: the positional arguments to the target
       kwargs: the keyword arguments to the target
@@ -70,7 +70,7 @@ class Job(object):
       f      = self.target.__name__
       args   = ['{:.5}'.format(str(arg)) for arg in self.args]
       kwargs = ['{key}={val:.8}'.format(key=key, val=str(val)) for key, val in self.kwargs.items()]
-      return '{f}({args})'.format(f=f, args=', '.join([args, kwargs]))
+      return '{f}({args})'.format(f=f, args=', '.join(args+kwargs))
     else:
       return object.__str__(self)
 

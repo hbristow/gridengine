@@ -15,5 +15,6 @@ setup(name='gridengine',
   author_email='hilton.bristow@gmail.com',
   license='GPL',
   packages=['gridengine'],
+  package_data={'gridengine': ['wrapper.sh']},
   install_requires=read('requirements.txt').splitlines(),
   zip_safe=False)

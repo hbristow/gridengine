@@ -30,7 +30,7 @@ class ProcessScheduler(Scheduler):
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      jobs: the dict of {jobid, job.Job{ items to run
+      job_table: the dict of {jobid, job.Job{ items to run
 
     Keyword Args:
       ignored (for compatibility)
@@ -83,7 +83,7 @@ class GridEngineScheduler(Scheduler):
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      jobs: the dict of {jobid, job.Job} items to run
+      job_table: the dict of {jobid, job.Job} items to run
 
     Keyword Args:
       h_cpu: maximum time expressed in format '02:00:00' (2 hours)
@@ -123,5 +123,5 @@ class GridEngineScheduler(Scheduler):
 
   def remove(self, sgeid):
     """Remove (Terminate) a running or queued Job"""
-    print('Forceably terminating job {id}'.format(id=sgeid))
     self.session.control(sgeid, self.drmaa.JobControlAction.TERMINATE)
+    print('Forceably terminating job {id}'.format(id=sgeid))
