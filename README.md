@@ -10,7 +10,7 @@ GridEngine was intentionally designed to match the API of the built-in `multipro
 
 At its core, gridengine is designed to transparently schedule and execute `Job`s on a Sun Grid Engine computing cluster and return the results once the jobs have completed. All scheduling and communication whilst jobs are running are handled by gridengine.
 
-The component layout of gridengine can be described as follows:
+The component layout of gridengine can be visualized as follows:
 
             |       JobDispatcher  ------>  Scheduler
     Host    |           /\                    /
