@@ -1,8 +1,10 @@
 from __future__ import print_function
 import cPickle as pickle
+import inspect
 import os
 import socket
 import sys
+import types
 import uuid
 
 
@@ -54,6 +56,8 @@ class Job(object):
       raise TypeError('lambda expressions and function objects cannot be targeted')
     if target.__module__ == '__main__':
       raise TypeError('functions in __main__ cannot be targeted')
+    if not isinstance(target, types.BuiltinFunctionType):
+      inspect.getcallargs(target, *args, **kwargs)
 
     # store the arguments
     self.target = target
