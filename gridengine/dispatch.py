@@ -41,7 +41,7 @@ class JobDispatcher(object):
     self.dispatcher_lock = threading.Lock()
     #self.scheduler_lock  = self.scheduler.lock
 
-  def listen(self):
+  def controller(self):
     print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.address))
     while not self.finished:
       # poll the socket with timeout
@@ -59,28 +59,57 @@ class JobDispatcher(object):
           self.socket.send(pickle.dumps(True, pickle.HIGHEST_PROTOCOL))
 
   def dispatch(self, jobs):
-    # create a shared job lookup table (1-based indexing)
-    jobids = range(1, len(jobs)+1)
-    self.job_table = dict((jobid, job) for jobid, job in zip(jobids, jobs))
-    self.results_table = dict.fromkeys(jobids)
+    """Dispatch a set of jobs to run asynchronously
 
-    # spin up the mediator
+    Request the scheduler to schedule the set of jobs to run,
+    then spin up the JobDispatcher.controller in a separate
+    thread to control execution of the jobs.
+
+    This method will raise a RuntimeError if called more than once
+    before a call to join().
+
+    Raises:
+      RuntimeError: if called multiple times before a corresponding
+      call to join()
+    """
+    if not self.finished:
+      raise RuntimeError('Dispatcher is already running')
+
+    # create a shared job lookup table (1-based indexing)
+    self.jobids = range(1, len(jobs)+1)
+    self.job_table = dict((jobid, job) for jobid, job in zip(self.jobids, jobs))
+    self.results_table = dict.fromkeys(self.jobids)
+
+    # spin up the controller
     self.finished = False
-    mediator = threading.Thread(target=self.listen)
-    mediator.start()
+    self.job_controller = threading.Thread(target=self.controller)
+    self.job_controller.start()
     # spin up the scheduler
-    try:
-      jobs = self.scheduler.schedule(self.address, self.job_table)
-    except Exception as e:
-      # catch anything so we can shut down the mediator
-      print(e)
-    finally:
-      # shut down the mediator
-      self.finished = True
-      mediator.join()
+    self.scheduler.schedule(self.address, self.job_table)
+
+  def join(self, timeout=None):
+    """Wait until the jobs terminate
+
+    This blocks the calling thread until the jobs terminate - either
+    normally or through an unhandled exception - or until the optional
+    timeout occurs.
+
+    Raises:
+      TimeoutError: If the jobs have not finished before the specified timeout
+      RuntimeError: If a call to join is made before dispatching
+    """
+    if self.finished:
+      raise RuntimeError('No dispatched jobs to join')
+
+    # raises TimeoutError
+    self.scheduler.join(timeout=timeout)
+
+    # shut down the controller
+    self.finished = True
+    self.job_controller.join()
 
     # return the results
-    return [self.results_table[jobid] for jobid in jobids]
+    return [self.results_table[jobid] for jobid in self.jobids]
 
   def get_finished(self):
     with self.dispatcher_lock:
@@ -92,5 +121,4 @@ class JobDispatcher(object):
 
   def __del__(self):
     """make sure the socket is closed on deallocation"""
-    if hasattr(self, 'socket'):
-      self.socket.close()
+    self.socket.close()

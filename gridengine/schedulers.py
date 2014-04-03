@@ -1,8 +1,15 @@
 import os
 import sys
-import multiprocessing
 import cPickle as pickle
 from . import job, settings
+
+
+# ----------------------------------------------------------------------------
+# Exceptions
+# ----------------------------------------------------------------------------
+class TimeoutError(Exception):
+  pass
+
 
 # ----------------------------------------------------------------------------
 # Generic scheduler interface
@@ -10,6 +17,10 @@ from . import job, settings
 class Scheduler(object):
   """A generic scheduler interface"""
   def schedule(self, submission_host, job_table, **kwargs):
+    raise NotImplementedError()
+  def join(self, timeout=None):
+    raise NotImplementedError()
+  def killall(self):
     raise NotImplementedError()
 
 
@@ -22,11 +33,16 @@ class ProcessScheduler(Scheduler):
   Requires ZeroMQ, but not a Sun Grid Engine (drmaa).
   """
   def __init__(self, max_threads=None):
+    import multiprocessing
+    self.multiprocessing = multiprocessing
     # set the threads to the cpu count
-    self.max_threads = max_threads if max_threads else multiprocessing.cpu_count()
+    self.max_threads = max_threads if max_threads else self.multiprocessing.cpu_count()
+
+  def __del__(self):
+    self.killall()
 
   def schedule(self, submission_host, job_table, **kwargs):
-    """schedule the jobs (dict of {jobid, job.Job}) to run
+    """schedule the jobs (dict of {jobid, job.Job}) to run asynchronously
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
@@ -35,19 +51,40 @@ class ProcessScheduler(Scheduler):
     Keyword Args:
       ignored (for compatibility)
     """
-    pool = multiprocessing.Pool(processes=self.max_threads)
+
+    self.pool = self.multiprocessing.Pool(processes=self.max_threads)
+    args = (['', submission_host, jobid] for jobid in range(1,len(job_table)+1))
+    self.result = self.pool.map_async(job.run_from_command_line, args)
     print('ProcessScheduler: submitted {0} jobs across {1} concurrent processes'
           .format(len(job_table), self.max_threads))
 
-    args = (['', submission_host, jobid] for jobid in range(1,len(job_table)+1))
+  def join(self, timeout=None):
+    """Wait until the jobs terminate
+
+    This blocks the calling thread until the jobs terminate - either
+    normally or through an unhandled exception - or until the optional
+    timeout occurs.
+
+    Raises:
+      TimeoutError: If the jobs have not finished before the specified timeout
+    """
     try:
-      jobs = pool.map(job.run_from_command_line, args)
+      self.result.get(timeout=timeout)
+      self.pool.close()
+      self.pool.join()
+    except self.multiprocessing.TimeoutError:
+      raise TimeoutError('call to join() timed out before jobs finished')
     except Exception as e:
-      pool.terminate()
-      pool.join()
-    else:
-      pool.close()
-      pool.join()
+      self.pool.terminate()
+      self.pool.join()
+      raise e
+
+  def killall(self):
+    try:
+      self.pool.terminate()
+      self.pool.join()
+    except (AttributeError, RuntimeError):
+      pass
 
 
 # ----------------------------------------------------------------------------
@@ -71,12 +108,11 @@ class GridEngineScheduler(Scheduler):
     self.sgeids = []
 
   def __del__(self):
+    self.killall()
     try:
-      # attempt cleanup
-      [self.remove(sgeid) for sgeid in self.sgeids]
-    except:
+      self.session.exit()
+    except self.drmaa.errors.NoActiveSessionException:
       pass
-    self.session.exit()
 
   def schedule(self, submission_host, job_table, **kwargs):
     """schedule the jobs (dict of {jobid, job.Job}) to run
@@ -103,25 +139,33 @@ class GridEngineScheduler(Scheduler):
       jt.outputPath = ':'+os.path.expanduser(settings.TEMPDIR)
       jt.errorPath  = ':'+os.path.expanduser(settings.TEMPDIR)
 
-      self.sgeids = self.session.runBulkJobs(jt, 1, len(job_table), 1)
+      self.sgeids  = self.session.runBulkJobs(jt, 1, len(job_table), 1)
+      self.arrayid = self.sgeids[0].split('.')[0]
       print('GridEngineScheduler: submitted {0} jobs in array {1}'
-            .format(len(job_table), self.sgeids[0].split('.')[0]))
+            .format(len(job_table), self.arrayid))
 
-    # wait for completion
-    while True:
-      try:
-        self.session.synchronize(self.sgeids, timeout=1, dispose=True)
-      except self.drmaa.ExitTimeoutException as timeout:
-        # polling timed out, continue
-        pass
-      except KeyboardInterrupt as interrupt:
-        [self.remove(sgeid) for sgeid in self.sgeids]
-        break
-      else:
-        # all jobs finished!
-        break
+  def join(self, timeout=None):
+    """Wait until the jobs terminate
 
-  def remove(self, sgeid):
-    """Remove (Terminate) a running or queued Job"""
-    self.session.control(sgeid, self.drmaa.JobControlAction.TERMINATE)
-    print('Forceably terminating job {id}'.format(id=sgeid))
+    This blocks the calling thread until the jobs terminate - either
+    normally or through an unhandled exception - or until the optional
+    timeout occurs.
+
+    Raises:
+      TimeoutError: If the jobs have not finished before the specified timeout
+    """
+    # translate the timeout
+    timeout = {
+      None: self.drmaa.Session.TIMEOUT_WAIT_FOREVER,
+      0:    self.drmaa.Session.TIMEOUT_NO_WAIT
+    }.get(timeout, timeout)
+
+    try:
+      self.session.synchronize(self.sgeids, timeout=timeout, dispose=True)
+    except self.drmaa.ExitTimeoutException:
+      raise TimeoutError('call to join() timed out before jobs finished')
+
+  def killall(self, verbose=False):
+    """Terminate any running jobs"""
+    self.session.control(self.drmaa.Session.JOB_IDS_SESSION_ALL,
+                         self.drmaa.JobControlAction.TERMINATE)

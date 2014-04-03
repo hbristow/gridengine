@@ -35,3 +35,5 @@ from . import dispatch, functional, job, schedulers
 from functional import map
 # import the Job class so users can subclass, e.g. MySpecialJob(gridengine.Job)
 from job import Job
+# import the exceptions
+from schedulers import TimeoutError

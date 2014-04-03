@@ -36,7 +36,8 @@ def map(f, args, scheduler=schedulers.ProcessScheduler):
   jobs = [job.Job(target=f, args=(arg,)) for arg in args]
 
   # run the jobs (guaranteed to return in the same order)
-  results = dispatcher.dispatch(jobs)
+  dispatcher.dispatch(jobs)
+  results = dispatcher.join()
 
   # check for exceptions
   for result in results:
