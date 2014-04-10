@@ -108,11 +108,12 @@ class GridEngineScheduler(Scheduler):
     self.sgeids = []
 
   def __del__(self):
-    self.killall()
-    try:
-      self.session.exit()
-    except self.drmaa.errors.NoActiveSessionException:
-      pass
+    if hasattr(self, 'drmaa'):
+      try:
+        self.killall()
+        self.session.exit()
+      except self.drmaa.errors.NoActiveSessionException:
+        pass
 
   def schedule(self, submission_host, job_table, **kwargs):
     """schedule the jobs (dict of {jobid, job.Job}) to run
