@@ -102,11 +102,20 @@ class JobDispatcher(object):
       raise RuntimeError('No dispatched jobs to join')
 
     # raises TimeoutError
-    self.scheduler.join(timeout=timeout)
-
-    # shut down the controller
-    self.finished = True
-    self.job_controller.join()
+    try:
+      self.scheduler.join(timeout=timeout)
+    except schedulers.TimeoutError as e:
+      # reraise the exception without joining the controller
+      raise e
+    except (KeyboardInterrupt, Exception) as e:
+      # shut down the controller then reraise the exception
+      self.finished = True
+      self.job_controller.join()
+      raise e
+    else:
+      # shut down the controller
+      self.finished = True
+      self.job_controller.join()
 
     # return the results
     return [self.results_table[jobid] for jobid in self.jobids]

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import cPickle as pickle
 from . import job, settings
 
@@ -74,7 +75,7 @@ class ProcessScheduler(Scheduler):
       self.pool.join()
     except self.multiprocessing.TimeoutError:
       raise TimeoutError('call to join() timed out before jobs finished')
-    except Exception as e:
+    except (KeyboardInterrupt, Exception) as e:
       self.pool.terminate()
       self.pool.join()
       raise e
@@ -174,19 +175,25 @@ class GridEngineScheduler(Scheduler):
     normally or through an unhandled exception - or until the optional
     timeout occurs.
 
+    Args:
+      timeout (int): The time to wait for the jobs to join before raising
+
     Raises:
       TimeoutError: If the jobs have not finished before the specified timeout
     """
-    # translate the timeout
-    timeout = {
-      None: self.drmaa.Session.TIMEOUT_WAIT_FOREVER,
-      0:    self.drmaa.Session.TIMEOUT_NO_WAIT
-    }.get(timeout, timeout)
-
-    try:
-      self.session.synchronize(self.sgeids, timeout=timeout, dispose=True)
-    except self.drmaa.ExitTimeoutException:
-      raise TimeoutError('call to join() timed out before jobs finished')
+    timeout = float('inf') if timeout is None else int(timeout)
+    start_time = time.time()
+    while True:
+      try:
+        self.session.synchronize(self.sgeids, timeout=min(1,timeout), dispose=True)
+      except self.drmaa.ExitTimeoutException:
+        if time.time() - start_time > timeout:
+          raise TimeoutError('call to join() timed out before jobs finished')
+      except (KeyboardInterrupt, Exception) as e:
+        self.killall()
+        raise e
+      else:
+        break
 
   def killall(self, verbose=False):
     """Terminate any running jobs"""
