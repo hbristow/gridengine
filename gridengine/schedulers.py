@@ -97,6 +97,17 @@ class GridEngineScheduler(Scheduler):
   """
 
   def __init__(self, **kwargs):
+    """Initialize a GridEngineScheduler instance
+
+    Only one instance may run per Python process, since the underlying drmaa
+    layer is a singleton.
+
+    Keyword Args:
+      Resources to be passed to the -l command of qsub. e.g.
+        h_cpu: maximum time expressed in format '02:00:00' (2 hours)
+        h_vmem: maximum memory allocation before job is killed in format '10G' (10GB)
+        virtual_free: memory free on host BEFORE job can be allocated
+    """
     import drmaa
     self.drmaa = drmaa
 
@@ -112,7 +123,7 @@ class GridEngineScheduler(Scheduler):
       try:
         self.killall()
         self.session.exit()
-      except self.drmaa.errors.NoActiveSessionException:
+      except (TypeError, self.drmaa.errors.NoActiveSessionException):
         pass
 
   def schedule(self, submission_host, job_table, **kwargs):
@@ -123,11 +134,19 @@ class GridEngineScheduler(Scheduler):
       job_table: the dict of {jobid, job.Job} items to run
 
     Keyword Args:
-      h_cpu: maximum time expressed in format '02:00:00' (2 hours)
-      h_vmem: maximum memory allocation before job is killed in format '10G' (10GB)
-      virtual_free: memory free on host BEFORE job can be allocated
-      swan, becks, leffe: whitelist only swan, becks or leffe machines
+      Resources to be passed to the -l command of qsub. These override any
+      arguments that were given to the constructor. e.g.
+        h_cpu: maximum time expressed in format '02:00:00' (2 hours)
+        h_vmem: maximum memory allocation before job is killed in format '10G' (10GB)
+        virtual_free: memory free on host BEFORE job can be allocated
     """
+
+    # update the keyword resources
+    kwargs = dict(self.kwargs.items() + kwargs.items())
+
+    # retrieve the job target
+    target = job_table[1].target
+    target = target.__module__ + '.' + target.__name__
 
     # build the homogenous job template and submit array
     with self.session.createJobTemplate() as jt:
@@ -135,7 +154,10 @@ class GridEngineScheduler(Scheduler):
 
       jt.remoteCommand = os.path.expanduser(settings.WRAPPER)
       jt.args = [submission_host]
-      jt.name = 'PythonGrid'
+      jt.jobName = kwargs.pop('name',target)
+      jt.nativeSpecification = '-l ' + ','.join(
+        key + '=' + str(val) for key,val in kwargs.items()
+      ) if kwargs else ''
       jt.joinFiles = True
       jt.outputPath = ':'+os.path.expanduser(settings.TEMPDIR)
       jt.errorPath  = ':'+os.path.expanduser(settings.TEMPDIR)
