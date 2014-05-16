@@ -4,7 +4,7 @@ from gridengine import job, dispatch, schedulers
 # ----------------------------------------------------------------------------
 # Map
 # ----------------------------------------------------------------------------
-def map(f, args, scheduler=schedulers.ProcessScheduler):
+def map(f, args, scheduler=schedulers.best_available):
   """Perform a functional-style map operation
 
   Apply a function f to each argument in the iterable args. This is equivalent to
@@ -18,9 +18,11 @@ def map(f, args, scheduler=schedulers.ProcessScheduler):
   on a grid engine, simply pass a schedulers.GridEngineScheduler instance.
 
   Args:
-    f: A picklable function
-    args: An iterable (list) of arguments to f
-    scheduler: a schedulers.Scheduler instance or class
+    f (func): A picklable function
+    args (iterable): An iterable (list) of arguments to f
+    scheduler: A schedulers.Scheduler instance or class. By default, the
+      system tries to return a GridEngineScheduler, and falls back to a
+      ProcessScheduler if it is not available
 
   Returns:
     List of return values equivalent to the builtin map function

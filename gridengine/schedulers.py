@@ -23,6 +23,13 @@ class Scheduler(object):
   def killall(self):
     raise NotImplementedError()
 
+def best_available():
+  """Return the best available scheduler for a system"""
+  try:
+    return GridEngineScheduler()
+  except RuntimeError:
+    return ProcessScheduler()
+
 
 # ----------------------------------------------------------------------------
 # MultiProcess Scheduler

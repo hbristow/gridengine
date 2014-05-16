@@ -16,10 +16,17 @@ class JobDispatcher(object):
   """
   Server-like node tasked with dispatching and mediating jobs
   """
-  def __init__(self, scheduler=schedulers.ProcessScheduler):
+  def __init__(self, scheduler=schedulers.best_available):
+    """Initialize a new dispatcher
+
+    Keyword Args:
+      scheduler: A schedulers.Scheduler instance or class. By default, the
+        system tries to return a GridEngineScheduler, and falls back to a
+        ProcessScheduler if it is not available
+    """
 
     # initialize the scheduler if it's not already an instance
-    self.scheduler = scheduler() if inspect.isclass(scheduler) else scheduler
+    self.scheduler = scheduler if isinstance(scheduler, schedulers.Scheduler) else scheduler()
 
     # setup the ZeroMQ communications
     import zmq
