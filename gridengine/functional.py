@@ -1,5 +1,5 @@
 import inspect
-from . import job, dispatch, schedulers
+from gridengine import job, dispatch, schedulers
 
 # ----------------------------------------------------------------------------
 # Map

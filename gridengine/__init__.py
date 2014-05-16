@@ -49,6 +49,12 @@ Modules:
   example: example usage of gridengine.functional.map
 """
 
+# global serializer
+try:
+  import dill as serializer
+except ImportError:
+  import cPickle as serializer
+
 # import commonly used names for convenience
 # gridengine is not large enough to warrant module imports
 # can help to stabilize the API as well (package contents can move around)

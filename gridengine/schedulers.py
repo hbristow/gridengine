@@ -1,8 +1,7 @@
 import os
 import sys
 import time
-import cPickle as pickle
-from . import job, settings
+from gridengine import job, settings
 
 
 # ----------------------------------------------------------------------------

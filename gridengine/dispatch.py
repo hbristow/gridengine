@@ -1,11 +1,12 @@
 from __future__ import print_function
-import cPickle as pickle
 import inspect
 import os
 import socket
 import sys
+from datetime import datetime
 import threading
 import uuid
+import gridengine
 from . import schedulers
 
 # ----------------------------------------------------------------------------
@@ -39,24 +40,23 @@ class JobDispatcher(object):
     # control locks
     self._finished = True
     self.dispatcher_lock = threading.Lock()
-    #self.scheduler_lock  = self.scheduler.lock
 
   def controller(self):
     print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.address))
     while not self.finished:
       # poll the socket with timeout
       if self.poller.poll(timeout=1000):
-        request = pickle.loads(self.socket.recv())
+        request = gridengine.serializer.loads(self.socket.recv())
         request, jobid, data = [request.get(key, None) for key in ('request', 'jobid', 'data')]
         if request == 'fetch_job':
           # find the requested job
           job = self.job_table[jobid]
           # send the job back to the client
-          self.socket.send(pickle.dumps(job, pickle.HIGHEST_PROTOCOL))
+          self.socket.send(gridengine.serializer.dumps(job, gridengine.serializer.HIGHEST_PROTOCOL))
         if request == 'store_data':
           # store the results
           self.results_table[jobid] = data
-          self.socket.send(pickle.dumps(True, pickle.HIGHEST_PROTOCOL))
+          self.socket.send(gridengine.serializer.dumps(True, gridengine.serializer.HIGHEST_PROTOCOL))
 
   def dispatch(self, jobs):
     """Dispatch a set of jobs to run asynchronously
@@ -84,6 +84,10 @@ class JobDispatcher(object):
     self.finished = False
     self.job_controller = threading.Thread(target=self.controller)
     self.job_controller.start()
+    # store the job start time
+    self.start_time = datetime.now()
+    self.end_time = None
+    self.elapsed_time = None
     # spin up the scheduler
     self.scheduler.schedule(self.address, self.job_table)
 
@@ -117,6 +121,9 @@ class JobDispatcher(object):
       self.finished = True
       self.job_controller.join()
 
+    # get the elapsed time
+    self.end_time = datetime.now()
+    self.elapsed_time = self.end_time - self.start_time
     # return the results
     return [self.results_table[jobid] for jobid in self.jobids]
 

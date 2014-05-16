@@ -1,11 +1,11 @@
 from __future__ import print_function
-import cPickle as pickle
 import inspect
 import os
 import socket
 import sys
 import types
 import uuid
+import gridengine
 
 
 # ----------------------------------------------------------------------------
@@ -29,7 +29,7 @@ class Job(object):
   code.
 
   Note that some care has been taken to ensure that Job objects and the
-  functions they wrap are pickle serializable. When subclassing Job, be sure to
+  functions they wrap are gridengine.serializer serializable. When subclassing Job, be sure to
   do the same.
 
   """
@@ -51,10 +51,10 @@ class Job(object):
     if not callable(target):
       raise TypeError("'{type}' object is not callable".format(type=type(target).__name__))
     try:
-      pickle.dumps(target)
+      gridengine.serializer.dumps(target)
     except TypeError:
       raise TypeError('lambda expressions and function objects cannot be targeted')
-    if target.__module__ == '__main__':
+    if target.__module__ == '__main__' and not gridengine.serializer.__name__ == 'dill':
       raise TypeError('functions in __main__ cannot be targeted')
     if not isinstance(target, types.BuiltinFunctionType):
       inspect.getcallargs(target, *args, **kwargs)
@@ -124,19 +124,19 @@ class JobController(object):
 
   def fetch(self):
     """fetch the job assignment from the job dispatcher"""
-    self.socket.send(pickle.dumps({
+    self.socket.send(gridengine.serializer.dumps({
       'jobid': self.jobid,
       'request': 'fetch_job',
-      'data': None}, pickle.HIGHEST_PROTOCOL))
-    return pickle.loads(self.socket.recv())
+      'data': None}, gridengine.serializer.HIGHEST_PROTOCOL))
+    return gridengine.serializer.loads(self.socket.recv())
 
   def store(self, result):
     """Push the results back to the server"""
-    self.socket.send(pickle.dumps({
+    self.socket.send(gridengine.serializer.dumps({
       'jobid': self.jobid,
       'request': 'store_data',
-      'data': result}, pickle.HIGHEST_PROTOCOL))
-    return pickle.loads(self.socket.recv())
+      'data': result}, gridengine.serializer.HIGHEST_PROTOCOL))
+    return gridengine.serializer.loads(self.socket.recv())
 
 def run_from_command_line(argv):
 
