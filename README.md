@@ -63,7 +63,7 @@ See `gridengine/example.py` for a runnable example.
 
 Branches/Contributing
 ---------------------
-The dsvm branching schema is set up as follows:
+The gridengine branching schema is set up as follows:
 
     master    reflects the current latest stable version
     dev       the development track, sometimes unstable
