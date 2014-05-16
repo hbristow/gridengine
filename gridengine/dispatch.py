@@ -25,9 +25,6 @@ class JobDispatcher(object):
         ProcessScheduler if it is not available
     """
 
-    # initialize the scheduler if it's not already an instance
-    self.scheduler = scheduler if isinstance(scheduler, schedulers.Scheduler) else scheduler()
-
     # setup the ZeroMQ communications
     import zmq
     self.context = zmq.Context()
@@ -47,6 +44,13 @@ class JobDispatcher(object):
     # control locks
     self._finished = True
     self.dispatcher_lock = threading.Lock()
+
+    # initialize the scheduler if it's not already an instance
+    self.scheduler = scheduler if isinstance(scheduler, schedulers.Scheduler) else scheduler()
+
+  def __del__(self):
+    """make sure the socket is closed on deallocation"""
+    self.socket.close()
 
   def controller(self):
     print('JobDispatcher: starting job dispatcher on transport {0}'.format(self.address))
@@ -141,7 +145,3 @@ class JobDispatcher(object):
     with self.dispatcher_lock:
       self._finished = value
   finished = property(get_finished, set_finished)
-
-  def __del__(self):
-    """make sure the socket is closed on deallocation"""
-    self.socket.close()
