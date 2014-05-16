@@ -78,9 +78,17 @@ class Job(object):
     else:
       return object.__str__(self)
 
-  def run(self):
+  def run(self, controller):
     """
     Runs the Job target with the stored arguments.
+
+    Args:
+      controller (JobController): The controller is a handle to the controller
+        that is managing this job. If the target accepts 'controller' as
+        a keyword argument, the controller is passed through. This allows the
+        job to directly communicate with the dispatcher to, for example,
+        retrieve meta job information such as jobid or push intermediate
+        results back to the dispatcher
     """
     result = self.target(*self.args, **self.kwargs)
     return result
@@ -113,7 +121,7 @@ class JobController(object):
     job = self.fetch()
     # run the job
     try:
-      result = job.run()
+      result = job.run(self)
     except KeyboardInterrupt as interrupt:
       raise Exception('Job terminated with KeyboardInterrupt')
     except Exception as e:
@@ -124,18 +132,23 @@ class JobController(object):
 
   def fetch(self):
     """fetch the job assignment from the job dispatcher"""
-    self.socket.send(gridengine.serializer.dumps({
-      'jobid': self.jobid,
-      'request': 'fetch_job',
-      'data': None}, gridengine.serializer.HIGHEST_PROTOCOL))
+    self.socket.send(gridengine.serializer.dumps(
+      {
+        'jobid': self.jobid,
+        'request': 'fetch_job',
+        'data': None
+      },
+      gridengine.serializer.HIGHEST_PROTOCOL))
     return gridengine.serializer.loads(self.socket.recv())
 
   def store(self, result):
     """Push the results back to the server"""
-    self.socket.send(gridengine.serializer.dumps({
-      'jobid': self.jobid,
-      'request': 'store_data',
-      'data': result}, gridengine.serializer.HIGHEST_PROTOCOL))
+    self.socket.send(gridengine.serializer.dumps(
+      {
+        'jobid': self.jobid,
+        'request': 'store_data',
+        'data': result},
+      gridengine.serializer.HIGHEST_PROTOCOL))
     return gridengine.serializer.loads(self.socket.recv())
 
 def run_from_command_line(argv):
