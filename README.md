@@ -37,14 +37,9 @@ Features
 
 Installation
 ------------
-Get gridengine from [github](https://github.com/hbristow/gridengine):
+Get gridengine from [github](https://github.com/hbristow/gridengine) and install using pip:
 
-    git clone https://github.com/hbristow/gridengine
-
-then install it with `pip`
-
-    cd gridengine
-    pip install .
+    pip install git+https://github.com/hbristow/gridengine
 
 This will automatically pull and build the dependencies.
 
