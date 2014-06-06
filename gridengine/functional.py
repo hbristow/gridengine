@@ -1,5 +1,42 @@
 import inspect
+import functools
 from gridengine import job, dispatch, schedulers
+
+# ----------------------------------------------------------------------------
+# Partial
+# ----------------------------------------------------------------------------
+def _isnumeric(var):
+  """Test whether a variable can be represented as a number"""
+  try:
+    float(var)
+    return True
+  except:
+    return False
+
+def partial(f, *args, **kwargs):
+  """Return a callable partially closed over the input function and arguments
+
+  partial is functionally equivalent to functools.partial, however it also
+  applies a variant of functools.update_wrapper, with:
+
+    __doc__    = f.__doc__
+    __module__ = f.__module__
+    __name__   = f.__name__ + string_representation_of_closed_arguments
+
+  This is useful for running functions with different parameter sets, whilst
+  being able to identify the variants by name
+  """
+  def name(var):
+    try:
+      return var.__name__
+    except AttributeError:
+      return str(var)[0:5] if _isnumeric(var) else var.__class__.__name__
+  g = functools.partial(f, *args, **kwargs)
+  g.__doc__    = f.__doc__
+  g.__module__ = f.__module__
+  g.__name__   = '_'.join([f.__name__] + [name(arg) for arg in list(args)+list(kwargs.values())])
+  return g
+
 
 # ----------------------------------------------------------------------------
 # Map

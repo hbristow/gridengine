@@ -47,17 +47,13 @@ class Job(object):
       kwargs: the keyword arguments to the target
     """
 
-    # make sure the target is a function and picklable
+    # make sure the target is callable and picklable
     if not callable(target):
       raise TypeError("'{type}' object is not callable".format(type=type(target).__name__))
     try:
       gridengine.serializer.dumps(target)
     except TypeError:
-      raise TypeError('lambda expressions and function objects cannot be targeted')
-    if target.__module__ == '__main__' and not gridengine.serializer.__name__ == 'dill':
-      raise TypeError('functions in __main__ cannot be targeted')
-    if not isinstance(target, types.BuiltinFunctionType):
-      inspect.getcallargs(target, *args, **kwargs)
+      raise TypeError('Given target cannot be serialized by {s}'.format(s=gridengine.serializer.__name__))
 
     # store the arguments
     self.target = target
