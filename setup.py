@@ -5,6 +5,9 @@ def read(file):
   with open(file, 'r') as f:
     return f.read()
 
+# ----------------------------------------------------------------------------
+# GridEngine Setup
+# ----------------------------------------------------------------------------
 setup(name='gridengine',
   version='0.1',
   description='High-level python wapper for the Sun Grid Engine (SGE) using DRMAA and ZMQ',
@@ -12,9 +15,21 @@ setup(name='gridengine',
   keywords='drmaa sge cluster distributed parallel',
   url='https://github.com/hbristow/gridengine/',
   author='Hilton Bristow',
-  author_email='hilton.bristow@gmail.com',
+  author_email='hilton.bristow+gridengine@gmail.com',
   license='GPL',
-  packages=['gridengine'],
-  package_data={'gridengine': ['wrapper.sh']},
-  install_requires=read('requirements.txt').splitlines(),
-  zip_safe=False)
+  packages=[
+    'gridengine'
+  ],
+  package_data={
+    'gridengine': ['wrapper.sh']
+  },
+  install_requires=[
+    'drmaa>=0.7.6',
+    'pyzmq>=14.1.1'
+  ],
+  extras_require={
+    # advanced serialization support
+    'dill': ['dill-0.2b1']
+  }
+  zip_safe=False
+)
