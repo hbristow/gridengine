@@ -30,6 +30,6 @@ setup(name='gridengine',
   extras_require={
     # advanced serialization support
     'dill': ['dill-0.2b1']
-  }
+  },
   zip_safe=False
 )
