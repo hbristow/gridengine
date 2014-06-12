@@ -103,7 +103,7 @@ class GridEngineScheduler(Scheduler):
   library
   """
 
-  def __init__(self, **kwargs):
+  def __init__(self, **resources):
     """Initialize a GridEngineScheduler instance
 
     Only one instance may run per Python process, since the underlying drmaa
@@ -119,8 +119,8 @@ class GridEngineScheduler(Scheduler):
     self.drmaa = drmaa
 
     # pass-through options to the jobs
-    self.kwargs = kwargs
-    self.whitelist = settings.WHITELIST
+    self.resources = settings.DEFAULT_RESOURCES
+    self.resources.update(resources)
     self.session = drmaa.Session()
     self.session.initialize()
     self.sgeids = []
@@ -133,7 +133,7 @@ class GridEngineScheduler(Scheduler):
       except (TypeError, self.drmaa.errors.NoActiveSessionException):
         pass
 
-  def schedule(self, submission_host, job_table, **kwargs):
+  def schedule(self, submission_host, job_table, **resources):
     """schedule the jobs (dict of {jobid, job.Job}) to run
 
     Args:
@@ -149,7 +149,7 @@ class GridEngineScheduler(Scheduler):
     """
 
     # update the keyword resources
-    kwargs = dict(self.kwargs.items() + kwargs.items())
+    resources = dict(self.resources.items() + resources.items())
 
     # retrieve the job target
     target = job_table[1].target
@@ -161,10 +161,10 @@ class GridEngineScheduler(Scheduler):
 
       jt.remoteCommand = os.path.expanduser(settings.WRAPPER)
       jt.args = [submission_host]
-      jt.jobName = kwargs.pop('name',target)
+      jt.jobName = resources.pop('name',target)
       jt.nativeSpecification = '-l ' + ','.join(
-        key + '=' + str(val) for key,val in kwargs.items()
-      ) if kwargs else ''
+        resource + '=' + str(value) for resource,value in resources.items()
+      ) if resources else ''
       jt.joinFiles = True
       jt.outputPath = ':'+os.path.expanduser(settings.TEMPDIR)
       jt.errorPath  = ':'+os.path.expanduser(settings.TEMPDIR)

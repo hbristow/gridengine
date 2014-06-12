@@ -3,7 +3,6 @@ Django-Style configuration file for GridEngine
 """
 import os
 import sys
-import subprocess
 
 
 # ----------------------------------------------------------------------------
@@ -16,7 +15,8 @@ TEMPDIR = os.path.join(os.environ['HOME'], 'tmp')
 
 
 # ----------------------------------------------------------------------------
-# Advanced
+# Default Resources
 # ----------------------------------------------------------------------------
-WHITELIST = []
-BLACKLIST = []
+DEFAULT_RESOURCES = {
+  'hostname': '!leffe*'
+}
