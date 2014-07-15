@@ -10,7 +10,7 @@ def read(file):
 # ----------------------------------------------------------------------------
 setup(name='gridengine',
   version='0.1',
-  description='High-level python wapper for the Sun Grid Engine (SGE) using DRMAA and ZMQ',
+  description='High-level python wrapper for the Sun Grid Engine (SGE) using DRMAA and ZMQ',
   long_description=read('README.md'),
   keywords='drmaa sge cluster distributed parallel',
   url='https://github.com/hbristow/gridengine/',
