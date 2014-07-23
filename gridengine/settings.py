@@ -17,6 +17,16 @@ TEMPDIR = os.path.join(os.environ['HOME'], 'tmp')
 # ----------------------------------------------------------------------------
 # Default Resources
 # ----------------------------------------------------------------------------
-DEFAULT_RESOURCES = {
-  'hostname': '!leffe*'
-}
+try:
+  import drmaa
+  if drmaa.Session.drmsInfo == 'PBS Professional':
+    # PBS/Torque Scheduler
+    DEFAULT_RESOURCES = {}
+  else:
+    # Sun GridEngine Scheduler
+  DEFAULT_RESOURCES = {
+    'hostname': '!leffe*'
+  }
+except:
+  # Process Scheduler
+  DEFAULT_RESOURCES = {}
