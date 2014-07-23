@@ -24,9 +24,9 @@ try:
     DEFAULT_RESOURCES = {}
   else:
     # Sun GridEngine Scheduler
-  DEFAULT_RESOURCES = {
-    'hostname': '!leffe*'
-  }
+    DEFAULT_RESOURCES = {
+      'hostname': '!leffe*'
+    }
 except:
   # Process Scheduler
   DEFAULT_RESOURCES = {}

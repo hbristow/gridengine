@@ -61,12 +61,12 @@ class JobDispatcher(object):
         request, jobid, data = [request.get(key, None) for key in ('request', 'jobid', 'data')]
         if request == 'fetch_job':
           # find the requested job
-          job = self.job_table[jobid]
+          job = self.job_queue.pop()
           # send the job back to the client
           self.socket.send(gridengine.serializer.dumps(job, gridengine.serializer.HIGHEST_PROTOCOL))
         if request == 'store_data':
           # store the results
-          self.results_table[jobid] = data
+          self.results[jobid] = data
           self.socket.send(gridengine.serializer.dumps(True, gridengine.serializer.HIGHEST_PROTOCOL))
 
   def dispatch(self, jobs):
@@ -87,9 +87,10 @@ class JobDispatcher(object):
       raise RuntimeError('Dispatcher is already running')
 
     # create a shared job lookup table (1-based indexing)
-    self.jobids = range(1, len(jobs)+1)
-    self.job_table = dict((jobid, job) for jobid, job in zip(self.jobids, jobs))
-    self.results_table = dict.fromkeys(self.jobids)
+    for id, job in enumerate(jobs):
+      job.id = id
+    self.job_queue = [job for job in jobs]
+    self.results   = dict.fromkeys(job.id for job in jobs)
 
     # spin up the controller
     self.finished = False
@@ -100,7 +101,7 @@ class JobDispatcher(object):
     self.end_time = None
     self.elapsed_time = None
     # spin up the scheduler
-    self.scheduler.schedule(self.address, self.job_table)
+    self.scheduler.schedule(self.address, self.job_queue)
 
   def join(self, timeout=None):
     """Wait until the jobs terminate
@@ -136,7 +137,7 @@ class JobDispatcher(object):
     self.end_time = datetime.now()
     self.elapsed_time = self.end_time - self.start_time
     # return the results
-    return [self.results_table[jobid] for jobid in self.jobids]
+    return [self.results[id] for id in sorted(self.results)]
 
   def get_finished(self):
     with self.dispatcher_lock:

@@ -95,7 +95,7 @@ class Job(object):
 # ----------------------------------------------------------------------------
 class JobController(object):
 
-  def __init__(self, submission_host, jobid):
+  def __init__(self, submission_host):
     # actual job invocation
     import zmq
     self.context = zmq.Context()
@@ -103,7 +103,6 @@ class JobController(object):
     self.ip = socket.gethostbyname(self.host_name)
     self.transport = 'tcp://{ip}'.format(ip=self.ip)
     self.submission_host = submission_host
-    self.jobid = int(jobid)
 
     # client/request protocol (zmq.REQ)
     self.socket = self.context.socket(zmq.REQ)
@@ -124,25 +123,25 @@ class JobController(object):
       # store the exception to handle on the host
       result = e
     # return the result to the dispatcher controller
-    self.store(result)
+    self.store(job.id, result)
 
   def fetch(self):
     """fetch the job assignment from the job dispatcher"""
     self.socket.send(gridengine.serializer.dumps(
       {
-        'jobid': self.jobid,
         'request': 'fetch_job',
+        'jobid': None,
         'data': None
       },
       gridengine.serializer.HIGHEST_PROTOCOL))
     return gridengine.serializer.loads(self.socket.recv())
 
-  def store(self, result):
+  def store(self, jobid, result):
     """Push the results back to the server"""
     self.socket.send(gridengine.serializer.dumps(
       {
-        'jobid': self.jobid,
         'request': 'store_data',
+        'jobid': jobid,
         'data': result},
       gridengine.serializer.HIGHEST_PROTOCOL))
     return gridengine.serializer.loads(self.socket.recv())
@@ -150,10 +149,10 @@ class JobController(object):
 def run_from_command_line(argv):
 
   # retrieve the client jobid and submission host address
-  script, submission_host, jobid = argv
+  script, submission_host = argv
 
   # create a job controller
-  controller = JobController(submission_host, jobid)
+  controller = JobController(submission_host)
 
   # fetch the job, run and store the results
   controller.start()

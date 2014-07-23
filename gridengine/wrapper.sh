@@ -11,4 +11,4 @@ PACKAGE_DIR="$( dirname "$MODULE_DIR" )";
 export PYTHONPATH=$PYTHONPATH:$PACKAGE_DIR;
 
 # invoke the client
-python -m gridengine.job $@ $SGE_TASK_ID;
+python -m gridengine.job $@;
