@@ -53,7 +53,7 @@ def f(x):
   """compute the square of a number"""
   return x*x
 
-scheduler = gridengine.schedulers.GridEngineScheduler()
+scheduler = gridengine.schedulers.best_available()
 
 x = [1, 2, 3, 4, 5]
 y = gridengine.map(f, x, scheduler=scheduler)
