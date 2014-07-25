@@ -16,7 +16,7 @@ class TimeoutError(Exception):
 # ----------------------------------------------------------------------------
 class Scheduler(object):
   """A generic scheduler interface"""
-  def schedule(self, submission_host, job_table, **kwargs):
+  def schedule(self, submission_host, job_queue, **kwargs):
     raise NotImplementedError()
   def join(self, timeout=None):
     raise NotImplementedError()
@@ -48,22 +48,22 @@ class ProcessScheduler(Scheduler):
   def __del__(self):
     self.killall()
 
-  def schedule(self, submission_host, job_table, **kwargs):
+  def schedule(self, submission_host, job_queue, **kwargs):
     """schedule the jobs (dict of {jobid, job.Job}) to run asynchronously
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      job_table: the dict of {jobid, job.Job{ items to run
+      job_queue: the dict of {jobid, job.Job{ items to run
 
     Keyword Args:
       ignored (for compatibility)
     """
 
     self.pool = self.multiprocessing.Pool(processes=self.max_threads)
-    args = (['', submission_host, jobid] for jobid in range(1,len(job_table)+1))
+    args = (['', submission_host, jobid] for jobid in range(1,len(job_queue)+1))
     self.result = self.pool.map_async(job.run_from_command_line, args)
     print('ProcessScheduler: submitted {0} jobs across {1} concurrent processes'
-          .format(len(job_table), self.max_threads))
+          .format(len(job_queue), self.max_threads))
 
   def join(self, timeout=None):
     """Wait until the jobs terminate
@@ -133,12 +133,12 @@ class GridEngineScheduler(Scheduler):
       except (TypeError, self.drmaa.errors.NoActiveSessionException):
         pass
 
-  def schedule(self, submission_host, job_table, **resources):
+  def schedule(self, submission_host, job_queue, **resources):
     """schedule the jobs (dict of {jobid, job.Job}) to run
 
     Args:
       submission_host: the address of the submission host (job.JobDispatcher.address)
-      job_table: the dict of {jobid, job.Job} items to run
+      job_queue: the dict of {jobid, job.Job} items to run
 
     Keyword Args:
       Resources to be passed to the -l command of qsub. These override any
@@ -148,11 +148,14 @@ class GridEngineScheduler(Scheduler):
         virtual_free: memory free on host BEFORE job can be allocated
     """
 
+    # dont spin up the scheduler if there's nothing to do
+    if not job_queue: return
+
     # update the keyword resources
     resources = dict(self.resources.items() + resources.items())
 
     # retrieve the job target
-    target = job_table[1].target
+    target = job_queue[0].target
     target = target.__module__ + '.' + target.__name__
 
     # build the homogenous job template and submit array
@@ -169,10 +172,10 @@ class GridEngineScheduler(Scheduler):
       jt.outputPath = ':'+os.path.expanduser(settings.TEMPDIR)
       jt.errorPath  = ':'+os.path.expanduser(settings.TEMPDIR)
 
-      self.sgeids  = self.session.runBulkJobs(jt, 1, len(job_table), 1)
+      self.sgeids  = self.session.runBulkJobs(jt, 1, len(job_queue), 1)
       self.arrayid = self.sgeids[0].split('.')[0]
       print('GridEngineScheduler: submitted {0} jobs in array {1}'
-            .format(len(job_table), self.arrayid))
+            .format(len(job_queue), self.arrayid))
 
   def join(self, timeout=None):
     """Wait until the jobs terminate
