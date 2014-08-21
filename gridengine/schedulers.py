@@ -165,6 +165,7 @@ class GridEngineScheduler(Scheduler):
       jt.remoteCommand = os.path.expanduser(settings.WRAPPER)
       jt.args = [submission_host]
       jt.jobName = resources.pop('name',target)
+      jt.jobName = ''.join(jt.jobName.split())[:15]
       jt.nativeSpecification = '-l ' + ','.join(
         resource + '=' + str(value) for resource,value in resources.items()
       ) if resources else ''
