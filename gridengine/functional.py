@@ -5,13 +5,18 @@ from gridengine import job, dispatch, schedulers
 # ----------------------------------------------------------------------------
 # Partial
 # ----------------------------------------------------------------------------
-def _isnumeric(var):
-  """Test whether a variable can be represented as a number"""
+def isexception(x):
+  """Test whether the value is an Exception instance"""
+  return isinstance(x, Exception)
+
+def isnumeric(x):
+  """Test whether the value can be represented as a number"""
   try:
-    float(var)
+    float(x)
     return True
   except:
     return False
+
 
 def partial(f, *args, **kwargs):
   """Return a callable partially closed over the input function and arguments
@@ -30,7 +35,7 @@ def partial(f, *args, **kwargs):
     try:
       return var.__name__
     except AttributeError:
-      return str(var)[0:5] if _isnumeric(var) else var.__class__.__name__
+      return str(var)[0:5] if isnumeric(var) else var.__class__.__name__
   g = functools.partial(f, *args, **kwargs)
   g.__doc__    = f.__doc__
   g.__module__ = f.__module__
@@ -41,7 +46,7 @@ def partial(f, *args, **kwargs):
 # ----------------------------------------------------------------------------
 # Map
 # ----------------------------------------------------------------------------
-def map(f, args, scheduler=schedulers.best_available):
+def map(f, args, scheduler=schedulers.best_available, reraise=True):
   """Perform a functional-style map operation
 
   Apply a function f to each argument in the iterable args. This is equivalent to
@@ -57,9 +62,13 @@ def map(f, args, scheduler=schedulers.best_available):
   Args:
     f (func): A picklable function
     args (iterable): An iterable (list) of arguments to f
+
+  Keyword Args:
     scheduler: A schedulers.Scheduler instance or class. By default, the
-      system tries to return a GridEngineScheduler, and falls back to a
-      ProcessScheduler if it is not available
+      system tries to return the best_available() scheduler. Use this if you
+      want to set a scheduler specifically.
+    reraise (bool): Reraise exceptions that occur in any of the jobs. Set this
+      to False if you want to salvage any good results.
 
   Returns:
     List of return values equivalent to the builtin map function
@@ -79,9 +88,9 @@ def map(f, args, scheduler=schedulers.best_available):
   results = dispatcher.join()
 
   # check for exceptions
-  for result in results:
-    if isinstance(result, Exception):
+  if reraise:
+    for exception in filter(isexception, results):
       # an error occurred during execution of one of the jobs, reraise it
-      raise result
+      raise exception
 
   return results
