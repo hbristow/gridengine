@@ -5,7 +5,6 @@ import os
 import socket
 import sys
 import threading
-import traceback
 import uuid
 
 import gridengine
@@ -124,12 +123,12 @@ class JobDispatcher(object):
       self.scheduler.join(timeout=timeout)
     except schedulers.TimeoutError as e:
       # reraise the exception without joining the controller
-      raise e
+      raise
     except (KeyboardInterrupt, Exception) as e:
       # shut down the controller then reraise the exception
       self.finished = True
       self.job_controller.join()
-      raise e
+      raise
     else:
       # shut down the controller
       self.finished = True

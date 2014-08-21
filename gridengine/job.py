@@ -123,6 +123,8 @@ class JobController(object):
       raise Exception('Job terminated with KeyboardInterrupt')
     except Exception as e:
       # store the exception to handle on the host
+      msg = 'Original Caller ' + traceback.format_exc()
+      e.__init__(msg)
       result = e
     # return the result to the dispatcher controller
     self.store(job.id, result)

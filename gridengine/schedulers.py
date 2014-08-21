@@ -60,7 +60,7 @@ class ProcessScheduler(Scheduler):
     """
 
     self.pool = self.multiprocessing.Pool(processes=self.max_threads)
-    args = (['', submission_host, jobid] for jobid in range(1,len(job_queue)+1))
+    args = (['', submission_host] for jobid in range(1,len(job_queue)+1))
     self.result = self.pool.map_async(job.run_from_command_line, args)
     print('ProcessScheduler: submitted {0} jobs across {1} concurrent processes'
           .format(len(job_queue), self.max_threads))
@@ -84,7 +84,7 @@ class ProcessScheduler(Scheduler):
     except (KeyboardInterrupt, Exception) as e:
       self.pool.terminate()
       self.pool.join()
-      raise e
+      raise
 
   def killall(self):
     try:
@@ -201,7 +201,7 @@ class GridEngineScheduler(Scheduler):
           raise TimeoutError('call to join() timed out before jobs finished')
       except (KeyboardInterrupt, Exception) as e:
         self.killall()
-        raise e
+        raise
       else:
         break
 
