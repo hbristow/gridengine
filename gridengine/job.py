@@ -108,6 +108,7 @@ class JobController(object):
 
     # client/request protocol (zmq.REQ)
     self.socket = self.context.socket(zmq.REQ)
+    self.socket.setsockopt(zmq.RCVTIMEO, 5000)
     self.socket.connect(submission_host)
 
   def __del__(self):
